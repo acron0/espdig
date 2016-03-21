@@ -24,6 +24,14 @@
       (rq/table-create tbl-name)
       (rq/run connection)))
 
+(defn create-index!
+  [{:keys [connection db]} tbl-name index-key]
+  (-> (rq/db db)
+      (rq/table tbl-name)
+      (rq/index-create (name index-key) (rq/fn [row]
+                                          (rq/get-field row index-key)))
+      (rq/run connection)))
+
 (defrecord Database [host port db]
   component/Lifecycle
   (start [component]
