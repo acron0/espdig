@@ -2,7 +2,8 @@
   (:require [com.stuartsierra.component :as component]
             [taoensso.timbre :as log]
             [espdig.components.db :as db]
-            [pl.danieljanus.tagsoup :as tagsoup]))
+            [pl.danieljanus.tagsoup :as tagsoup]
+            [clojure.core.async :as async]))
 
 (def tbl-name "yt_videos")
 (def running? (atom false))
@@ -11,12 +12,11 @@
   [resp k]
   (some #(when (and (vector? %) (= (first %) k)) %) resp))
 
-(defn check-feed!
-  [_ db feed feed-idx]
+(defn fetch-feed-entries!
+  [db feed]
   (log/debug "Checking feed:" feed)
   (when-let [resp (tagsoup/parse feed)]
-    (hash-map :idx feed-idx
-              :chan-id (-> resp (find-element :channelId) (last))
+    (hash-map :chan-id (-> resp (find-element :channelId) (last))
               :author  (-> resp (find-element :author) (find-element :name) (last))
               :entries (map #(hash-map :id (-> % (find-element :videoId) (last))
                                        :title (-> % (find-element :title) (last))
@@ -31,14 +31,16 @@
 
 (defn start-loop!
   [db feeds]
-  (let [ended? (atom false)
-        a      (agent nil)]
-    (add-watch a :watcher (fn [_ _ _ state]
-                            (record-entries! state)
-                            (when (zero? (:idx state))
-                              (reset! ended? true))))
-    (doseq [[feed-idx feed] (reverse (map-indexed vector feeds))]
-      (send a check-feed! db feed feed-idx))))
+  (async/go-loop []
+    (loop [remaining-feeds feeds]
+      (when-let [feed (first remaining-feeds)]
+        (let [{:keys [chan-id author entries]} (fetch-feed-entries! db feed)]
+          (doseq [entry entries]
+            (println "Found entry" (:id entry))))
+        (recur [(next remaining-feeds)])))
+    (Thread/sleep 10000) ;; 10 secs
+    (when @running?
+      (recur))))
 
 (defn create-schema!
   [db]
