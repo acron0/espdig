@@ -45,5 +45,5 @@
     (assoc component :connection nil)))
 
 (defn make-db
-  [host port db]
-  (->Database host port db))
+  [{:keys [host port name]}]
+  (->Database host port name))

@@ -3,10 +3,15 @@
             [taoensso.timbre :as log]
             [espdig.components.db :as db]
             [pl.danieljanus.tagsoup :as tagsoup]
-            [clojure.core.async :as async]))
+            [clojure.core.async :as async]
+            [me.raynes.conch :as sh]
+            [me.raynes.fs :as fs]))
 
 (def tbl-name "yt_videos")
 (def running? (atom false))
+
+;; we 'define' the shell programs we want to use
+(sh/programs docker)
 
 (defn find-element
   [resp k]
@@ -24,21 +29,40 @@
                                        :thumbnail (-> % (find-element :group) (find-element :thumbnail) (second) :url))
                             (filter #(and (vector? %) (= (first %) :entry)) resp)))))
 
-(defn record-entries!
-  [{:keys [entries] :as foo}]
+(defn run-shell-cmd!
+  [fn argsv]
+  (let [rfn (resolve fn)
+        opts {:verbose true :throw false :timeout 120000}]
+    (log/debug "SH:" (str fn) (clojure.string/join " " argsv))
+    (let [result (apply rfn (conj argsv opts))]
+      (log/debug "SH exit-code:" (-> result :exit-code deref))
+      result)))
+
+(defn process-entries!
+  [{:keys [entries chan-id author]} dir]
   (doseq [entry entries]
-    (println "GOT ENTRY" (:thumbnail entry))))
+    (when @running?
+      (log/info "Downloading" (:original-link entry))
+      (let [{:keys [id original-link]} entry
+            output-file                (str id ".m4a")
+            ;; docker run --net=host -it --rm -v (pwd):/src jbergknoff/youtube-dl -f 'bestaudio[ext=m4a]' -o /src/video.m4a "http://www.youtube.com/watch?v=Xqudmexfa9A"
+
+            docker-line                ["run" "--net=host" "--rm" "-v" (str dir ":/src")
+                                        "jbergknoff/youtube-dl" "-f" "bestaudio[ext=m4a]" "-o" (str "/src/" output-file) original-link]
+            result                     (run-shell-cmd! 'docker docker-line)]
+        (if-not ((every-pred number? zero?) (-> result :exit-code deref))
+          (log/error "An error occurred whilst downloading the video:" result))))))
 
 (defn start-loop!
-  [db feeds]
+  [db feeds dir]
   (async/go-loop []
     (loop [remaining-feeds feeds]
-      (when-let [feed (first remaining-feeds)]
-        (let [{:keys [chan-id author entries]} (fetch-feed-entries! db feed)]
-          (doseq [entry entries]
-            (println "Found entry" (:id entry))))
-        (recur [(next remaining-feeds)])))
-    (Thread/sleep 10000) ;; 10 secs
+      (when @running?
+        (when-let [feed (first remaining-feeds)]
+          (process-entries! (fetch-feed-entries! db feed) dir)
+          (recur [(next remaining-feeds)]))))
+    (when @running?
+      (Thread/sleep 10000)) ;; 10 secs
     (when @running?
       (recur))))
 
@@ -56,14 +80,20 @@
     (when-not (db/table-exists? db tbl-name)
       (log/infof "Couldn't find table '%s' - creating..." tbl-name)
       (create-schema! db))
-    (reset! running? true)
-    (start-loop! db feeds)
-    component)
+    ;; create temp dir
+    (let [temp-dir (fs/temp-dir "video-staging")]
+      (fs/chmod "+w" temp-dir)
+      (log/info "Temporary directory created:" temp-dir)
+      (reset! running? true)
+      (start-loop! db feeds temp-dir)
+      (assoc component :temp-dir temp-dir)))
 
   (stop [component]
     (log/info "Stopping Youtube RSS downloader")
+    (when-let [temp-dir (:temp-dir component)]
+      (fs/delete-dir temp-dir))
     (reset! running? false)
-    component))
+    (dissoc component :temp-dir)))
 
 (defn make-youtube-downloader
   [feeds]
