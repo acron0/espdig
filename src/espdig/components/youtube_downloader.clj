@@ -5,7 +5,8 @@
             [pl.danieljanus.tagsoup :as tagsoup]
             [clojure.core.async :as async]
             [me.raynes.conch :as sh]
-            [me.raynes.fs :as fs]))
+            [me.raynes.fs :as fs]
+            [espdig.utils :as utils]))
 
 (def tbl-name "yt_videos")
 (def running? (atom false))
@@ -30,10 +31,9 @@
                             (filter #(and (vector? %) (= (first %) :entry)) resp)))))
 
 (defn run-shell-cmd!
-  [fn argsv]
-  (let [rfn (resolve fn)
-        opts {:verbose true :throw false :timeout 120000}]
-    (log/debug "SH:" (str fn) (clojure.string/join " " argsv))
+  [rfn argsv]
+  (let [opts {:verbose true :timeout 120000}]
+    (log/debug "SH:" (utils/fn-name rfn) (clojure.string/join " " argsv))
     (let [result (apply rfn (conj argsv opts))]
       (log/debug "SH exit-code:" (-> result :exit-code deref))
       result)))
@@ -45,13 +45,13 @@
       (log/info "Downloading" (:original-link entry))
       (let [{:keys [id original-link]} entry
             output-file                (str id ".m4a")
-            ;; docker run --net=host -it --rm -v (pwd):/src jbergknoff/youtube-dl -f 'bestaudio[ext=m4a]' -o /src/video.m4a "http://www.youtube.com/watch?v=Xqudmexfa9A"
-
             docker-line                ["run" "--net=host" "--rm" "-v" (str dir ":/src")
-                                        "jbergknoff/youtube-dl" "-f" "bestaudio[ext=m4a]" "-o" (str "/src/" output-file) original-link]
-            result                     (run-shell-cmd! 'docker docker-line)]
-        (if-not ((every-pred number? zero?) (-> result :exit-code deref))
-          (log/error "An error occurred whilst downloading the video:" result))))))
+                                        "jbergknoff/youtube-dl" "-f" "bestaudio[ext=m4a]" "-o" (str "/src/" output-file) original-link]]
+        (try
+          (let [result (run-shell-cmd! docker docker-line)]
+            (if-not ((every-pred number? zero?) (-> result :exit-code deref))
+              (log/error "An error occurred whilst downloading the video:" result)))
+          (catch Exception e (log/error e)))))))
 
 (defn start-loop!
   [db feeds dir]
