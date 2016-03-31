@@ -21,14 +21,16 @@
 (defn fetch-feed-entries!
   [db feed]
   (log/debug "Checking feed:" feed)
-  (when-let [resp (tagsoup/parse feed)]
-    (hash-map :chan-id (-> resp (find-element :channelId) (last))
-              :author  (-> resp (find-element :author) (find-element :name) (last))
-              :entries (map #(hash-map :id (-> % (find-element :videoId) (last))
-                                       :title (-> % (find-element :title) (last))
-                                       :original-link (-> % (find-element :link) (second) :href)
-                                       :thumbnail (-> % (find-element :group) (find-element :thumbnail) (second) :url))
-                            (filter #(and (vector? %) (= (first %) :entry)) resp)))))
+  (try
+    (when-let [resp (tagsoup/parse feed)]
+      (hash-map :chan-id (-> resp (find-element :channelId) (last))
+                :author  (-> resp (find-element :author) (find-element :name) (last))
+                :entries (map #(hash-map :id (-> % (find-element :videoId) (last))
+                                         :title (-> % (find-element :title) (last))
+                                         :original-link (-> % (find-element :link) (second) :href)
+                                         :thumbnail (-> % (find-element :group) (find-element :thumbnail) (second) :url))
+                              (filter #(and (vector? %) (= (first %) :entry)) resp))))
+    (catch java.net.UnknownHostException _ (log/errorf "Couldn't find %s - do you have an internet connection?" feed))))
 
 (defn run-shell-cmd!
   [rfn argsv]
@@ -59,7 +61,8 @@
     (loop [remaining-feeds feeds]
       (when @running?
         (when-let [feed (first remaining-feeds)]
-          (process-entries! (fetch-feed-entries! db feed) dir)
+          (when-let [entries (fetch-feed-entries! db feed)]
+            (process-entries! entries dir))
           (recur [(next remaining-feeds)]))))
     (when @running?
       (Thread/sleep 10000)) ;; 10 secs
@@ -75,18 +78,19 @@
 
 (defrecord YoutubeDownloader [feeds]
   component/Lifecycle
-  (start [{:keys [db] :as component}]
-    (log/info "Starting Youtube RSS downloader")
-    (when-not (db/table-exists? db tbl-name)
-      (log/infof "Couldn't find table '%s' - creating..." tbl-name)
-      (create-schema! db))
-    ;; create temp dir
-    (let [temp-dir (fs/temp-dir "video-staging")]
-      (fs/chmod "+w" temp-dir)
-      (log/info "Temporary directory created:" temp-dir)
-      (reset! running? true)
-      (start-loop! db feeds temp-dir)
-      (assoc component :temp-dir temp-dir)))
+  (start [component]
+    (let [{:keys [db]} component]
+      (log/info "Starting Youtube RSS downloader")
+      (when-not (db/table-exists? db tbl-name)
+        (log/infof "Couldn't find table '%s' - creating..." tbl-name)
+        (create-schema! db))
+      ;; create temp dir
+      (let [temp-dir (fs/temp-dir "video-staging")]
+        (fs/chmod "+w" temp-dir)
+        (log/info "Temporary directory created:" temp-dir)
+        (reset! running? true)
+        (start-loop! db feeds temp-dir)
+        (assoc component :temp-dir temp-dir))))
 
   (stop [component]
     (log/info "Stopping Youtube RSS downloader")
