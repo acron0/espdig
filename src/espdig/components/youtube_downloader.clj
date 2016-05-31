@@ -2,35 +2,18 @@
   (:require [com.stuartsierra.component :as component]
             [taoensso.timbre :as log]
             [espdig.components.db :as db]
+            [espdig.components.aws :as aws]
             [pl.danieljanus.tagsoup :as tagsoup]
             [clojure.core.async :as async]
             [me.raynes.conch :as sh]
             [me.raynes.fs :as fs]
-            [espdig.utils :as utils]))
+            [espdig.utils :as utils]
+            [clojure.core.async :as async]))
 
-(def tbl-name "yt_videos")
 (def running? (atom false))
 
 ;; we 'define' the shell programs we want to use
 (sh/programs docker)
-
-(defn find-element
-  [resp k]
-  (some #(when (and (vector? %) (= (first %) k)) %) resp))
-
-(defn fetch-feed-entries!
-  [db feed]
-  (log/debug "Checking feed:" feed)
-  (try
-    (when-let [resp (tagsoup/parse feed)]
-      (hash-map :chan-id (-> resp (find-element :channelId) (last))
-                :author  (-> resp (find-element :author) (find-element :name) (last))
-                :entries (map #(hash-map :id (-> % (find-element :videoId) (last))
-                                         :title (-> % (find-element :title) (last))
-                                         :original-link (-> % (find-element :link) (second) :href)
-                                         :thumbnail (-> % (find-element :group) (find-element :thumbnail) (second) :url))
-                              (filter #(and (vector? %) (= (first %) :entry)) resp))))
-    (catch java.net.UnknownHostException _ (log/errorf "Couldn't find %s - do you have an internet connection?" feed))))
 
 (defn run-shell-cmd!
   [rfn argsv]
@@ -40,50 +23,40 @@
       (log/debug "SH exit-code:" (-> result :exit-code deref))
       result)))
 
-(defn process-entries!
-  [{:keys [entries chan-id author]} dir]
-  (doseq [entry entries]
-    (when @running?
-      (log/info "Downloading" (:original-link entry))
-      (let [{:keys [id original-link]} entry
-            output-file                (str id ".m4a")
-            docker-line                ["run" "--net=host" "--rm" "-v" (str dir ":/src")
-                                        "jbergknoff/youtube-dl" "-f" "bestaudio[ext=m4a]" "-o" (str "/src/" output-file) original-link]]
-        (try
-          (let [result (run-shell-cmd! docker docker-line)]
-            (if-not ((every-pred number? zero?) (-> result :exit-code deref))
-              (log/error "An error occurred whilst downloading the video:" result)))
-          (catch Exception e (log/error e)))))))
+(defn process-entry!
+  [{:keys [entry chan-id author]} dir]
+  (when @running?
+    (let [{:keys [id original-link]} entry]
+      (if false ;;(s3/exists aws id)
+        (log/debug id "already exists on S3. Checking db...")
+        (do
+          (log/info "Downloading new video:" original-link)
+          (let [output-file (str id ".m4a")
+                docker-line ["run" "--net=host" "--rm" "-v" (str dir ":/src")
+                             "jbergknoff/youtube-dl" "-f" "bestaudio[ext=m4a]" "-o" (str "/src/" output-file) original-link]]
+            (try
+              (let [result (run-shell-cmd! docker docker-line)]
+                (if-not ((every-pred number? zero?) (-> result :exit-code deref))
+                  (log/error "An error occurred whilst downloading the video:" result)))
+              (catch Exception e (log/error e)))))))))
 
-(defn start-loop!
-  [db feeds dir]
-  (async/go-loop []
-    (loop [remaining-feeds feeds]
-      (when @running?
-        (when-let [feed (first remaining-feeds)]
-          (when-let [entries (fetch-feed-entries! db feed)]
-            (process-entries! entries dir))
-          (recur [(next remaining-feeds)]))))
-    (when @running?
-      (Thread/sleep 10000)) ;; 10 secs
-    (when @running?
-      (recur))))
+(defn start-loop! [db {:keys [new-entry-mult]} temp-dir]
+  (let [ch (async/chan)
+        tp (async/tap new-entry-mult ch)]
+    (async/go-loop []
+      (if-let [entry (async/<! ch)]
+        (do
+          (process-entry! entry temp-dir)
+          (when @running?
+            (recur)))
+        (log/debug "Downloader loop exited.")))))
 
-(defn create-schema!
-  [db]
-  ;; create table
-  (db/create-table! db tbl-name)
-  ;; add index
-  #_(db/create-index! db tbl-name :id))
-
-(defrecord YoutubeDownloader [feeds]
+(defrecord YoutubeDownloader []
   component/Lifecycle
   (start [component]
-    (let [{:keys [db]} component]
+    (let [{:keys [db feeds aws]} component]
       (log/info "Starting Youtube RSS downloader")
-      (when-not (db/table-exists? db tbl-name)
-        (log/infof "Couldn't find table '%s' - creating..." tbl-name)
-        (create-schema! db))
+
       ;; create temp dir
       (let [temp-dir (fs/temp-dir "video-staging")]
         (fs/chmod "+w" temp-dir)
@@ -100,5 +73,5 @@
     (dissoc component :temp-dir)))
 
 (defn make-youtube-downloader
-  [feeds]
-  (->YoutubeDownloader feeds))
+  []
+  (->YoutubeDownloader))
