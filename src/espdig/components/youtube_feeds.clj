@@ -3,19 +3,19 @@
             [taoensso.timbre :as log]
             [espdig.components.db :as db]
             [espdig.components.aws :as aws]
+            [espdig.schema :as es]
             [pl.danieljanus.tagsoup :as tagsoup]
             [clojure.core.async :as async]))
 
-(def tbl-name "yt_videos")
+;; Time between checks
+(def check-delay 10000)
 (def running? (atom false))
-(def new-entry-ch (atom nil))
 
 (defn create-schema!
-  [db]
+  [db {:keys [tbl-name]}]
   ;; create table
   (db/create-table! db tbl-name)
-  ;; add index
-  #_(db/create-index! db tbl-name :id))
+  #_(db/create-index! db tbl-name :meta/hash))
 
 (defn find-element
   [resp k]
@@ -31,53 +31,54 @@
                 :entries (map #(hash-map :id (-> % (find-element :videoId) (last))
                                          :title (-> % (find-element :title) (last))
                                          :original-link (-> % (find-element :link) (second) :href)
-                                         :thumbnail (-> % (find-element :group) (find-element :thumbnail) (second) :url))
+                                         :thumbnail (-> % (find-element :group) (find-element :thumbnail) (second) :url)
+                                         :published (-> % (find-element :published) (last)))
                               (filter #(and (vector? %) (= (first %) :entry)) resp))))
     (catch java.net.UnknownHostException _ (log/errorf "Couldn't find %s - do you have an internet connection?" feed))))
 
-(defn publish-entry
-  [pub-ch entry chan-id author]
-  #_(log/debug "Publishing new feed" entry chan-id author)
-  (async/put! pub-ch {:entry entry :chan-id chan-id :author author}))
+(defn save-entry!
+  [config db {:keys [meta/hash] :as entry}]
+  (db/insert-item! db (:tbl-name config) (assoc entry :id hash)))
 
 (defn start-loop!
-  [pub-ch db feeds]
+  [db feeds config]
   (async/go-loop []
     (loop [remaining-feeds feeds]
       (when @running?
         (when-let [feed (first remaining-feeds)]
           (when-let [entries (fetch-feed-entries! db feed)]
-            (let [{:keys [entries chan-id author]} entries]
-              (run! #(publish-entry pub-ch % chan-id author) entries)))
+            (try
+              (let [{:keys [entries chan-id author]} entries
+                    entries' (->> entries
+                                  (map #(es/entry->media-item % chan-id author))
+                                  (filter #(not (db/get-item-by-id db (:tbl-name config) (:meta/hash %)))))]
+                (log/debug "Found" (count entries') "new entry/entries.")
+                (run! #(save-entry! config db %) entries'))
+              (catch Exception e
+                (log/error e))))
           (recur [(next remaining-feeds)]))))
     (when @running?
-      (Thread/sleep 10000)) ;; 10 secs
+      (Thread/sleep check-delay))
     (when @running?
       (recur))))
 
-(defrecord YoutubeFeedsChecker [feeds]
+(defrecord YoutubeFeedsChecker [feeds config]
   component/Lifecycle
   (start [component]
-    (let [{:keys [db]} component
-          _            (reset! new-entry-ch (async/chan))
-          new-entry-mult (async/mult @new-entry-ch)]
+    (let [{:keys [db]} component]
       (log/info "Starting Youtube RSS Feed Checker")
-      (when-not (db/table-exists? db tbl-name)
-        (log/infof "Couldn't find table '%s' - creating..." tbl-name)
-        (create-schema! db))
+      (when-not (db/table-exists? db (:tbl-name config))
+        (log/infof "Couldn't find table '%s' - creating..." (:tbl-name config))
+        (create-schema! db config))
       (reset! running? true)
-      (start-loop! @new-entry-ch db feeds)
-      (-> component
-          (assoc :new-entry-mult new-entry-mult))))
+      (start-loop! db feeds config)
+      component))
 
   (stop [component]
     (log/info "Stopping Youtube RSS Feed Checker")
     (reset! running? false)
-    (when @new-entry-ch
-      (async/close! @new-entry-ch)
-      (reset! new-entry-ch nil))
-    (dissoc component :new-entry-mult)))
+    component))
 
 (defn make-youtube-feeds-checker
-  [feeds]
-  (->YoutubeFeedsChecker feeds))
+  [feeds media-config]
+  (->YoutubeFeedsChecker feeds media-config))

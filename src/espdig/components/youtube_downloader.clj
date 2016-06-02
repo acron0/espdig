@@ -17,44 +17,45 @@
 
 (defn run-shell-cmd!
   [rfn argsv]
-  (let [opts {:verbose true :timeout 120000}]
+  (let [opts {:verbose true :timeout 120000 :throw false}]
     (log/debug "SH:" (utils/fn-name rfn) (clojure.string/join " " argsv))
     (let [result (apply rfn (conj argsv opts))]
       (log/debug "SH exit-code:" (-> result :exit-code deref))
       result)))
 
 (defn process-entry!
-  [{:keys [entry chan-id author]} dir]
+  [entry dir]
   (when @running?
-    (let [{:keys [id original-link]} entry]
+    (let [{:keys [media/id media/channel-id video/url]} entry
+          id' (str channel-id "_" id)]
       (if false ;;(s3/exists aws id)
-        (log/debug id "already exists on S3. Checking db...")
+        (log/debug id' "already exists on S3. Checking db...")
         (do
-          (log/info "Downloading new video:" original-link)
-          (let [output-file (str id ".m4a")
+          (log/info "Downloading new video:" url)
+          (let [output-file (str id' ".m4a")
                 docker-line ["run" "--net=host" "--rm" "-v" (str dir ":/src")
-                             "jbergknoff/youtube-dl" "-f" "bestaudio[ext=m4a]" "-o" (str "/src/" output-file) original-link]]
+                             "jbergknoff/youtube-dl" "-f" "bestaudio[ext=m4a]" "-o" (str "/src/" output-file) url]]
             (try
               (let [result (run-shell-cmd! docker docker-line)]
                 (if-not ((every-pred number? zero?) (-> result :exit-code deref))
                   (log/error "An error occurred whilst downloading the video:" result)))
               (catch Exception e (log/error e)))))))))
 
-(defn start-loop! [db {:keys [new-entry-mult]} temp-dir]
-  (let [ch (async/chan)
-        tp (async/tap new-entry-mult ch)]
-    (async/go-loop []
+(defn start-loop! [db temp-dir]
+ ;; FIX THIS TO READ PENDING FROM DB
+  #_(async/go-loop []
       (if-let [entry (async/<! ch)]
         (do
           (process-entry! entry temp-dir)
           (when @running?
             (recur)))
-        (log/debug "Downloader loop exited.")))))
+        (do
+          (log/debug "Downloader loop exited.")))))
 
-(defrecord YoutubeDownloader []
+(defrecord YoutubeDownloader [config]
   component/Lifecycle
   (start [component]
-    (let [{:keys [db feeds aws]} component]
+    (let [{:keys [db aws]} component]
       (log/info "Starting Youtube RSS downloader")
 
       ;; create temp dir
@@ -62,7 +63,7 @@
         (fs/chmod "+w" temp-dir)
         (log/info "Temporary directory created:" temp-dir)
         (reset! running? true)
-        (start-loop! db feeds temp-dir)
+        (start-loop! db temp-dir)
         (assoc component :temp-dir temp-dir))))
 
   (stop [component]
@@ -73,5 +74,5 @@
     (dissoc component :temp-dir)))
 
 (defn make-youtube-downloader
-  []
-  (->YoutubeDownloader))
+  [config]
+  (->YoutubeDownloader config))

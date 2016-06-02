@@ -13,14 +13,15 @@
   []
   (let [config {:db {:host "127.0.0.1"
                      :port 28015
-                     :name "test"}
-                :aws {:profile "espdig"}}]
+                     :db-name "test"}
+                :aws {:profile "espdig"}
+                :media {:tbl-name "media"}}]
     (component/system-map
      :db    (make-db (:db config))
      :aws   (make-aws-connection (:aws config))
      :feeds (component/using
-             (make-youtube-feeds-checker youtube-feeds)
+             (make-youtube-feeds-checker youtube-feeds (:media config))
              [:db])
      :yt-dl (component/using
-             (make-youtube-downloader)
-             [:aws :db :feeds]))))
+             (make-youtube-downloader (:media config))
+             [:aws :db]))))
