@@ -10,6 +10,8 @@
             [espdig.utils :as utils]
             [clojure.core.async :as async]))
 
+;; Time between checks
+(def check-delay 10000)
 (def running? (atom false))
 
 ;; we 'define' the shell programs we want to use
@@ -23,34 +25,40 @@
       (log/debug "SH exit-code:" (-> result :exit-code deref))
       result)))
 
-(defn process-entry!
+(defn download-audio!
   [entry dir]
   (when @running?
     (let [{:keys [media/id media/channel-id video/url]} entry
           id' (str channel-id "_" id)]
-      (if false ;;(s3/exists aws id)
-        (log/debug id' "already exists on S3. Checking db...")
-        (do
-          (log/info "Downloading new video:" url)
-          (let [output-file (str id' ".m4a")
-                docker-line ["run" "--net=host" "--rm" "-v" (str dir ":/src")
-                             "jbergknoff/youtube-dl" "-f" "bestaudio[ext=m4a]" "-o" (str "/src/" output-file) url]]
-            (try
-              (let [result (run-shell-cmd! docker docker-line)]
-                (if-not ((every-pred number? zero?) (-> result :exit-code deref))
-                  (log/error "An error occurred whilst downloading the video:" result)))
-              (catch Exception e (log/error e)))))))))
+      (if url
+        (if false ;;(s3/exists aws id)
+          (log/debug id' "already exists on S3. Checking db...")
+          (do
+            (log/info "Downloading new video:" url)
+            (let [output-file (str id' ".m4a")
+                  docker-line ["run" "--net=host" "--rm" "-v" (str dir ":/src")
+                               "jbergknoff/youtube-dl" "-f" "bestaudio[ext=m4a]" "-o" (str "/src/" output-file) url]]
+              (try
+                (let [result (run-shell-cmd! docker docker-line)]
+                  (if-not ((every-pred number? zero?) (-> result :exit-code deref))
+                    (log/error "An error occurred whilst downloading the video:" result)
+                    (str dir "/" output-file)))
+                (catch Exception e (log/error e))))))
+        (log/error "NO URL???" entry)))))
 
-(defn start-loop! [db temp-dir]
- ;; FIX THIS TO READ PENDING FROM DB
-  #_(async/go-loop []
-      (if-let [entry (async/<! ch)]
-        (do
-          (process-entry! entry temp-dir)
-          (when @running?
-            (recur)))
-        (do
-          (log/debug "Downloader loop exited.")))))
+(defn start-loop! [db temp-dir config]
+  (async/go-loop []
+    (let [pending (db/select-indexed-items db (:tbl-name config) :audio/status :pending)]
+      (log/info (count pending) "item(s) pending for download.")
+      (loop [remaining-entries pending]
+        (when @running?
+          (when-let [entry (first remaining-entries)]
+            (let [audio (download-audio! entry temp-dir)])
+            (recur (next remaining-entries))))))
+    (when @running?
+      (Thread/sleep check-delay))
+    (when @running?
+      (recur))))
 
 (defrecord YoutubeDownloader [config]
   component/Lifecycle
@@ -63,7 +71,7 @@
         (fs/chmod "+w" temp-dir)
         (log/info "Temporary directory created:" temp-dir)
         (reset! running? true)
-        (start-loop! db temp-dir)
+        (start-loop! db temp-dir config)
         (assoc component :temp-dir temp-dir))))
 
   (stop [component]

@@ -14,8 +14,8 @@
 (defn create-schema!
   [db {:keys [tbl-name]}]
   ;; create table
-  (db/create-table! db tbl-name)
-  #_(db/create-index! db tbl-name :meta/hash))
+  #_(db/create-table! db tbl-name)
+  #_(db/create-index! db tbl-name :audio/status)) ;; so we can extract pending
 
 (defn find-element
   [resp k]
@@ -56,7 +56,7 @@
                 (run! #(save-entry! config db %) entries'))
               (catch Exception e
                 (log/error e))))
-          (recur [(next remaining-feeds)]))))
+          (recur (next remaining-feeds)))))
     (when @running?
       (Thread/sleep check-delay))
     (when @running?

@@ -12,9 +12,21 @@
       (clojure.string/replace "/" "__")
       (keyword)))
 
+(defn inflate-key
+  [m]
+  (-> m
+      (str)
+      (subs 1)
+      (clojure.string/replace "__" "/")
+      (keyword)))
+
 (defn deflate-map
   [m]
   (reduce-kv (fn [a k v] (assoc a (deflate-key k) v)) {} m))
+
+(defn inflate-map
+  [m]
+  (reduce-kv (fn [a k v] (assoc a (inflate-key k) v)) {} m))
 
 (defn connect-to-database
   [host port db-name]
@@ -59,6 +71,14 @@
       (rq/table tbl-name)
       (rq/get id)
       (rq/run connection)))
+
+(defn select-indexed-items
+  [{:keys [connection db-name]} tbl-name index value]
+  (mapv inflate-map
+        (-> (rq/db db-name)
+            (rq/table tbl-name)
+            (rq/get-all [value] {:index (deflate-key index)})
+            (rq/run connection))))
 
 (defrecord Database [host port db-name]
   component/Lifecycle
