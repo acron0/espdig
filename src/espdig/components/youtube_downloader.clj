@@ -43,7 +43,8 @@
                 (try
                   (let [result (run-shell-cmd! docker docker-line)]
                     (if-not ((every-pred number? zero?) (-> result :exit-code deref))
-                      (log/error "An error occurred whilst downloading the video:" result)
+                      (when @running?
+                        (log/error "An error occurred whilst downloading the video:" result))
                       [id' (str dir "/" output-file)]))
                   (catch Exception e (log/error e))))))
         (log/error "NO URL???" entry)))))
