@@ -14,8 +14,10 @@
   (let [config {:db {:host "127.0.0.1"
                      :port 28015
                      :db-name "test"}
-                :aws {:profile "espdig"}
-                :media {:tbl-name "media"}}]
+                :aws {:profile "espdig"
+                      :endpoint "eu-west-1"}
+                :media {:tbl-name "media"
+                        :s3-bucket "espdig-m4a"}}]
     (component/system-map
      :db    (make-db (:db config))
      :aws   (make-aws-connection (:aws config))

@@ -1,5 +1,6 @@
 (ns espdig.components.youtube-downloader
   (:require [com.stuartsierra.component :as component]
+            [clojure.java.io :as io]
             [taoensso.timbre :as log]
             [espdig.components.db :as db]
             [espdig.components.aws :as aws]
@@ -26,34 +27,40 @@
       result)))
 
 (defn download-audio!
-  [entry dir]
+  [entry dir config aws]
   (when @running?
     (let [{:keys [media/id media/channel-id video/url]} entry
           id' (str channel-id "_" id)]
       (if url
-        (if false ;;(s3/exists aws id)
+        (if (aws/get-file aws (:s3-bucket config) id')
           (log/debug id' "already exists on S3. Checking db...")
-          (do
-            (log/info "Downloading new video:" url)
-            (let [output-file (str id' ".m4a")
-                  docker-line ["run" "--net=host" "--rm" "-v" (str dir ":/src")
-                               "jbergknoff/youtube-dl" "-f" "bestaudio[ext=m4a]" "-o" (str "/src/" output-file) url]]
-              (try
-                (let [result (run-shell-cmd! docker docker-line)]
-                  (if-not ((every-pred number? zero?) (-> result :exit-code deref))
-                    (log/error "An error occurred whilst downloading the video:" result)
-                    (str dir "/" output-file)))
-                (catch Exception e (log/error e))))))
+          [id' nil]
+          #_(do
+              (log/info "Downloading new video:" url)
+              (let [output-file (str id' ".m4a")
+                    docker-line ["run" "--net=host" "--rm" "-v" (str dir ":/src")
+                                 "jbergknoff/youtube-dl" "-f" "bestaudio[ext=m4a]" "-o" (str "/src/" output-file) url]]
+                (try
+                  (let [result (run-shell-cmd! docker docker-line)]
+                    (if-not ((every-pred number? zero?) (-> result :exit-code deref))
+                      (log/error "An error occurred whilst downloading the video:" result)
+                      [id' (str dir "/" output-file)]))
+                  (catch Exception e (log/error e))))))
         (log/error "NO URL???" entry)))))
 
-(defn start-loop! [db temp-dir config]
+(defn start-loop! [db temp-dir config aws]
   (async/go-loop []
     (let [pending (db/select-indexed-items db (:tbl-name config) :audio/status :pending)]
       (log/info (count pending) "item(s) pending for download.")
       (loop [remaining-entries pending]
         (when @running?
           (when-let [entry (first remaining-entries)]
-            (let [audio (download-audio! entry temp-dir)])
+            (try
+              (let [[id uri] (download-audio! entry temp-dir config aws)]
+                (when uri
+                  (log/info "Uploading" uri "as" id)
+                  (aws/upload-file aws (:s3-bucket config) id (io/file uri))))
+              (catch Exception e (log/error e)))
             (recur (next remaining-entries))))))
     (when @running?
       (Thread/sleep check-delay))
@@ -71,7 +78,7 @@
         (fs/chmod "+w" temp-dir)
         (log/info "Temporary directory created:" temp-dir)
         (reset! running? true)
-        (start-loop! db temp-dir config)
+        (start-loop! db temp-dir config aws)
         (assoc component :temp-dir temp-dir))))
 
   (stop [component]
