@@ -4,7 +4,8 @@
             [espdig.components.db :refer [make-db]]
             [espdig.components.aws :refer [make-aws-connection]]
             [espdig.components.youtube-downloader :refer [make-youtube-downloader]]
-            [espdig.components.youtube-feeds :refer [make-youtube-feeds-checker]]))
+            [espdig.components.youtube-feeds :refer [make-youtube-feeds-checker]]
+            [espdig.components.server :refer [make-http-server]]))
 
 (def youtube-feeds
   ["https://www.youtube.com/feeds/videos.xml?channel_id=UCfeeUuW7edMxF3M_cyxGT8Q"])
@@ -21,6 +22,7 @@
     (component/system-map
      :db    (make-db (:db config))
      :aws   (make-aws-connection (:aws config))
+     :http  (make-http-server 8080)
      :feeds (component/using
              (make-youtube-feeds-checker youtube-feeds (:media config))
              [:db])

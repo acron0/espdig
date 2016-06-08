@@ -33,9 +33,10 @@
           id' (str channel-id "_" id)]
       (if url
         (if (aws/get-file aws (:s3-bucket config) id')
-          (log/debug id' "already exists on S3. Checking db...")
-          [id' nil]
-          #_(do
+          (do
+            (log/debug id' "already exists on S3.")
+            [id' nil])
+          (do
               (log/info "Downloading new video:" url)
               (let [output-file (str id' ".m4a")
                     docker-line ["run" "--net=host" "--rm" "-v" (str dir ":/src")
@@ -52,7 +53,8 @@
 (defn start-loop! [db temp-dir config aws]
   (async/go-loop []
     (let [pending (db/select-indexed-items db (:tbl-name config) :audio/status :pending)]
-      (log/info (count pending) "item(s) pending for download.")
+      (when-not (zero? (count pending))
+        (log/info (count pending) "item(s) pending for download."))
       (loop [remaining-entries pending]
         (when @running?
           (when-let [entry (first remaining-entries)]
@@ -60,7 +62,8 @@
               (let [[id uri] (download-audio! entry temp-dir config aws)]
                 (when uri
                   (log/info "Uploading" uri "as" id)
-                  (aws/upload-file aws (:s3-bucket config) id (io/file uri))))
+                  (aws/upload-file aws (:s3-bucket config) id (io/file uri)))
+                (db/update-item! db (:tbl-name config) id :audio/status :complete))
               (catch Exception e (log/error e)))
             (recur (next remaining-entries))))))
     (when @running?

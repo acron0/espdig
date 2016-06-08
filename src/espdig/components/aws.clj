@@ -16,9 +16,14 @@
 
 (defn get-file
   [aws bucket key]
-  (get-object aws
-              :bucket-name bucket
-              :key key))
+  (try
+    (get-object aws
+                :bucket-name bucket
+                :key key)
+    (catch com.amazonaws.services.s3.model.AmazonS3Exception e
+      (if (= (.getStatusCode e) 404)
+        nil
+        (log/error "Amazon error:" e)))))
 
 (defrecord Amazon [profile]
   component/Lifecycle

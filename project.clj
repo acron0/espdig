@@ -15,7 +15,10 @@
                  [prismatic/schema "1.1.1"]
                  [kixi/schema-contrib "0.2.0"]
                  [clj-time "0.11.0"]
-                 [amazonica "0.3.52"]]
+                 [amazonica "0.3.52"]
+                 [cheshire "5.5.0"]
+                 [http-kit "2.1.19"]
+                 [metosin/compojure-api "1.0.0"]]
   :profiles {:dev {:dependencies [[org.clojure/tools.namespace "0.2.4"]]
                    :source-paths ["dev"]
                    :repl-options {:init-ns user}}})

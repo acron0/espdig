@@ -23,7 +23,7 @@
 
 (defn fetch-feed-entries!
   [db feed]
-  (log/debug "Checking feed:" feed)
+  (log/trace "Checking feed:" feed)
   (try
     (when-let [resp (tagsoup/parse feed)]
       (hash-map :chan-id (-> resp (find-element :channelId) (last))
@@ -52,7 +52,8 @@
                     entries' (->> entries
                                   (map #(es/entry->media-item % chan-id author))
                                   (filter #(not (db/get-item-by-id db (:tbl-name config) (:meta/hash %)))))]
-                (log/debug "Found" (count entries') "new entry/entries.")
+                (when-not (zero? (count entries'))
+                  (log/info "Found" (count entries') "new entry/entries."))
                 (run! #(save-entry! config db %) entries'))
               (catch Exception e
                 (log/error e))))

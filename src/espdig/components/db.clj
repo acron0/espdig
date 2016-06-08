@@ -65,6 +65,15 @@
         (rq/insert item')
         (rq/run connection))))
 
+(defn update-item!
+  [{:keys [connection db-name]} tbl-name id key val]
+  (-> (rq/db db-name)
+      (rq/table tbl-name)
+      (rq/get id)
+      (rq/update (rq/fn [item]
+                   {(deflate-key key) val}))
+      (rq/run connection)))
+
 (defn get-item-by-id
   [{:keys [connection db-name]} tbl-name id]
   (-> (rq/db db-name)
