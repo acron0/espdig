@@ -37,17 +37,17 @@
             (log/debug id' "already exists on S3.")
             [id' nil])
           (do
-              (log/info "Downloading new video:" url)
-              (let [output-file (str id' ".m4a")
-                    docker-line ["run" "--net=host" "--rm" "-v" (str dir ":/src")
-                                 "jbergknoff/youtube-dl" "-f" "bestaudio[ext=m4a]" "-o" (str "/src/" output-file) url]]
-                (try
-                  (let [result (run-shell-cmd! docker docker-line)]
-                    (if-not ((every-pred number? zero?) (-> result :exit-code deref))
-                      (when @running?
-                        (log/error "An error occurred whilst downloading the video:" result))
-                      [id' (str dir "/" output-file)]))
-                  (catch Exception e (log/error e))))))
+            (log/info "Downloading new video:" url)
+            (let [output-file (str id' ".m4a")
+                  docker-line ["run" "--net=host" "--rm" "-v" (str dir ":/src")
+                               "jbergknoff/youtube-dl" "-f" "bestaudio[ext=m4a]" "-o" (str "/src/" output-file) url]]
+              (try
+                (let [result (run-shell-cmd! docker docker-line)]
+                  (if-not ((every-pred number? zero?) (-> result :exit-code deref))
+                    (when @running?
+                      (log/error "An error occurred whilst downloading the video:" result))
+                    [id' (str dir "/" output-file)]))
+                (catch Exception e (log/error e))))))
         (log/error "NO URL???" entry)))))
 
 (defn start-loop! [db temp-dir config aws]

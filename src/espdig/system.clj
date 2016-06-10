@@ -18,11 +18,12 @@
                 :aws {:profile "espdig"
                       :endpoint "eu-west-1"}
                 :media {:tbl-name "media"
-                        :s3-bucket "espdig-m4a"}}]
+                        :s3-bucket "espdig-m4a"}
+                :http {:port 8081}}]
     (component/system-map
      :db    (make-db (:db config))
      :aws   (make-aws-connection (:aws config))
-     :http  (make-http-server 8080)
+     :http  (make-http-server (:http config))
      :feeds (component/using
              (make-youtube-feeds-checker youtube-feeds (:media config))
              [:db])
