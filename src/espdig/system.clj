@@ -8,8 +8,12 @@
             [espdig.components.server :refer [make-http-server]]))
 
 (def youtube-feeds
-  ["https://www.youtube.com/feeds/videos.xml?channel_id=UCfeeUuW7edMxF3M_cyxGT8Q"
-   "https://www.youtube.com/feeds/videos.xml?channel_id=UC30f1UTFNXfcGcrsojwOpSw"])
+  [{:feed/channel   "Thooorin"
+    :feed/rss       "https://www.youtube.com/feeds/videos.xml?channel_id=UCfeeUuW7edMxF3M_cyxGT8Q"
+    :feed/title-rgx [".*"]}
+   {:feed/channel   "Splyce"
+    :feed/rss       "https://www.youtube.com/feeds/videos.xml?channel_id=UC30f1UTFNXfcGcrsojwOpSw"
+    :feed/title-rgx ["^Spy Cam"]}]) DO THIS
 
 (defn new-system
   []

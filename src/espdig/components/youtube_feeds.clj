@@ -53,7 +53,7 @@
                                   (map #(es/entry->media-item % chan-id author))
                                   (filter #(not (db/get-item-by-id db (:tbl-name config) (:meta/hash %)))))]
                 (when-not (zero? (count entries'))
-                  (log/info "Found" (count entries') "new entry/entries."))
+                  (log/info "Found" (count entries') "new entry/entries for" chan-id))
                 (run! #(save-entry! config db %) entries'))
               (catch Exception e
                 (log/error e))))
