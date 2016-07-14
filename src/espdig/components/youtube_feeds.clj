@@ -22,10 +22,10 @@
   (some #(when (and (vector? %) (= (first %) k)) %) resp))
 
 (defn fetch-feed-entries!
-  [db feed]
+  [db {:keys [feed/channel feed/rss feed/title-rgx] :as feed}]
   (log/trace "Checking feed:" feed)
   (try
-    (when-let [resp (tagsoup/parse feed)]
+    (when-let [resp (tagsoup/parse rss)]
       (hash-map :chan-id (-> resp (find-element :channelId) (last))
                 :author  (-> resp (find-element :author) (find-element :name) (last))
                 :entries (map #(hash-map :id (-> % (find-element :videoId) (last))
@@ -49,6 +49,7 @@
           (when-let [entries (fetch-feed-entries! db feed)]
             (try
               (let [{:keys [entries chan-id author]} entries
+                    {:keys [feed/channel feed/rss feed/title-rgx]} feed
                     entries' (->> entries
                                   (map #(es/entry->media-item % chan-id author))
                                   (filter #(not (db/get-item-by-id db (:tbl-name config) (:meta/hash %)))))]

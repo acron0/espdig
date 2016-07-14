@@ -13,7 +13,7 @@
     :feed/title-rgx [".*"]}
    {:feed/channel   "Splyce"
     :feed/rss       "https://www.youtube.com/feeds/videos.xml?channel_id=UC30f1UTFNXfcGcrsojwOpSw"
-    :feed/title-rgx ["^Spy Cam"]}]) DO THIS
+    :feed/title-rgx ["^Spy Cam"]}])
 
 (defn new-system
   []
@@ -28,7 +28,7 @@
     (component/system-map
      :db    (make-db (:db config))
      :aws   (make-aws-connection (:aws config))
-     :http  (make-http-server (:http config))
+     ;;:http  (make-http-server (:http config))
      :feeds (component/using
              (make-youtube-feeds-checker youtube-feeds (:media config))
              [:db])
