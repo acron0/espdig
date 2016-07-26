@@ -14,8 +14,8 @@
 (defn create-schema!
   [db {:keys [tbl-name]}]
   ;; create table
-  #_(db/create-table! db tbl-name)
-  #_(db/create-index! db tbl-name :audio/status)) ;; so we can extract pending
+  (db/create-table! db tbl-name)
+  (db/create-index! db tbl-name :audio/status)) ;; so we can extract pending
 
 (defn find-element
   [resp k]
