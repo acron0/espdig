@@ -5,11 +5,7 @@
             [espdig.components.aws :as aws]
             [espdig.schema :as es]
             [pl.danieljanus.tagsoup :as tagsoup]
-            [clojure.core.async :as async]))
-
-;; Time between checks
-(def check-delay 10000)
-(def running? (atom false))
+            [espdig.utils :refer [make-loop! stop-loop!]]))
 
 (defn create-schema!
   [db {:keys [tbl-name]}]
@@ -40,29 +36,24 @@
   [config db {:keys [meta/hash] :as entry}]
   (db/insert-item! db (:tbl-name config) (assoc entry :id hash)))
 
-(defn start-loop!
-  [db feeds config]
-  (async/go-loop []
-    (loop [remaining-feeds feeds]
-      (when @running?
-        (when-let [feed (first remaining-feeds)]
-          (when-let [entries (fetch-feed-entries! db feed)]
-            (try
-              (let [{:keys [entries chan-id author]} entries
-                    {:keys [feed/channel feed/rss feed/title-rgx]} feed
-                    entries' (->> entries
-                                  (map #(es/entry->media-item % chan-id author))
-                                  (filter #(not (db/get-item-by-id db (:tbl-name config) (:meta/hash %)))))]
-                (when-not (zero? (count entries'))
-                  (log/info "Found" (count entries') "new entry/entries for" chan-id))
-                (run! #(save-entry! config db %) entries'))
-              (catch Exception e
-                (log/error e))))
-          (recur (next remaining-feeds)))))
+(defn do-loop!
+  [{:keys [running?]} db feeds config]
+  (loop [remaining-feeds feeds]
     (when @running?
-      (Thread/sleep check-delay))
-    (when @running?
-      (recur))))
+      (when-let [feed (first remaining-feeds)]
+        (when-let [entries (fetch-feed-entries! db feed)]
+          (try
+            (let [{:keys [entries chan-id author]} entries
+                  {:keys [feed/channel feed/rss feed/title-rgx]} feed
+                  entries' (->> entries
+                                (map #(es/entry->media-item % chan-id author))
+                                (filter #(not (db/get-item-by-id db (:tbl-name config) (:meta/hash %)))))]
+              (when-not (zero? (count entries'))
+                (log/info "Found" (count entries') "new entry/entries for" chan-id))
+              (run! #(save-entry! config db %) entries'))
+            (catch Exception e
+              (log/error e))))
+        (recur (next remaining-feeds))))))
 
 (defrecord YoutubeFeedsChecker [feeds config]
   component/Lifecycle
@@ -72,14 +63,13 @@
       (when-not (db/table-exists? db (:tbl-name config))
         (log/infof "Couldn't find table '%s' - creating..." (:tbl-name config))
         (create-schema! db config))
-      (reset! running? true)
-      (start-loop! db feeds config)
-      component))
+      (assoc component :loop (make-loop! {} do-loop! db feeds config))))
 
   (stop [component]
     (log/info "Stopping Youtube RSS Feed Checker")
-    (reset! running? false)
-    component))
+    (let [{:keys [loop]} component]
+      (stop-loop! loop)
+      (dissoc component :loop))))
 
 (defn make-youtube-feeds-checker
   [feeds media-config]

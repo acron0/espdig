@@ -5,7 +5,8 @@
             [espdig.components.aws :refer [make-aws-connection]]
             [espdig.components.youtube-downloader :refer [make-youtube-downloader]]
             [espdig.components.youtube-feeds :refer [make-youtube-feeds-checker]]
-            [espdig.components.server :refer [make-http-server]]))
+            [espdig.components.server :refer [make-http-server]]
+            [espdig.components.json-dumper :refer [make-json-dumper]]))
 
 (def youtube-feeds
   [{:feed/channel   "Thooorin"
@@ -23,7 +24,9 @@
                 :aws {:profile "espdig"
                       :endpoint "eu-west-1"}
                 :media {:tbl-name "media"
-                        :s3-bucket "espdig-m4a"}
+                        :s3-bucket "espdig-m4a"
+                        :s3-url "https://s3-eu-west-1.amazonaws.com"}
+                :json {:filename "data.json"}
                 :http {:port 8081}}]
     (component/system-map
      :db    (make-db (:db config))
@@ -34,4 +37,7 @@
              [:db])
      :yt-dl (component/using
              (make-youtube-downloader (:media config))
-             [:aws :db]))))
+             [:aws :db])
+     :json (component/using
+            (make-json-dumper (:json config))
+            [:aws :db]))))

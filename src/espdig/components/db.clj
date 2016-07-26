@@ -83,11 +83,14 @@
 
 (defn select-indexed-items
   [{:keys [connection db-name]} tbl-name index value]
-  (mapv inflate-map
-        (-> (rq/db db-name)
-            (rq/table tbl-name)
-            (rq/get-all [value] {:index (deflate-key index)})
-            (rq/run connection))))
+  (try
+    (mapv inflate-map
+          (-> (rq/db db-name)
+              (rq/table tbl-name)
+              (rq/get-all [value] {:index (deflate-key index)})
+              (rq/run connection)))
+    (catch Exception e (log/warn "Couldn't selected indexed items:" (.getMessage e))
+           [])))
 
 (defrecord Database [host port db-name]
   component/Lifecycle

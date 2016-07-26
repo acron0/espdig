@@ -5,15 +5,10 @@
             [espdig.components.db :as db]
             [espdig.components.aws :as aws]
             [pl.danieljanus.tagsoup :as tagsoup]
-            [clojure.core.async :as async]
             [me.raynes.conch :as sh]
             [me.raynes.fs :as fs]
             [espdig.utils :as utils]
-            [clojure.core.async :as async]))
-
-;; Time between checks
-(def check-delay 10000)
-(def running? (atom false))
+            [espdig.utils :refer [make-loop! stop-loop!]]))
 
 ;; we 'define' the shell programs we want to use
 (sh/programs docker)
@@ -27,7 +22,7 @@
       result)))
 
 (defn download-audio!
-  [entry dir config aws]
+  [running? entry dir config aws]
   (when @running?
     (let [{:keys [media/id media/channel-id video/url]} entry
           id' (str channel-id "_" id)]
@@ -50,26 +45,26 @@
                 (catch Exception e (log/error e))))))
         (log/error "NO URL???" entry)))))
 
-(defn start-loop! [db temp-dir config aws]
-  (async/go-loop []
-    (let [pending (db/select-indexed-items db (:tbl-name config) :audio/status :pending)]
-      (when-not (zero? (count pending))
-        (log/info (count pending) "item(s) pending for download."))
-      (loop [remaining-entries pending]
-        (when @running?
-          (when-let [entry (first remaining-entries)]
-            (try
-              (let [[id uri] (download-audio! entry temp-dir config aws)]
-                (when uri
-                  (log/info "Uploading" uri "as" id)
-                  (aws/upload-file aws (:s3-bucket config) id (io/file uri)))
-                (db/update-item! db (:tbl-name config) id :audio/status :complete))
-              (catch Exception e (log/error e)))
-            (recur (next remaining-entries))))))
-    (when @running?
-      (Thread/sleep check-delay))
-    (when @running?
-      (recur))))
+(defn do-loop!
+  [{:keys [running?]} db temp-dir config aws]
+  (let [pending (db/select-indexed-items db (:tbl-name config) :audio/status :pending)]
+    (if-not (zero? (count pending))
+      (log/info (count pending) "item(s) pending for download."))
+    (loop [remaining-entries pending]
+      (when @running?
+        (when-let [entry (first remaining-entries)]
+          (try
+            (let [[id uri] (download-audio! running? entry temp-dir config aws)]
+              (when uri
+                (log/info "Uploading" uri "as" id)
+                (aws/upload-file aws (:s3-bucket config) id (io/file uri)))
+              (db/update-item! db (:tbl-name config) id :audio/status :complete)
+              (db/update-item! db (:tbl-name config) id :audio/url    (format "%s/%s/%s"
+                                                                              (:s3-url config)
+                                                                              (:s3-bucket config)
+                                                                              id)))
+            (catch Exception e (log/error e)))
+          (recur (next remaining-entries)))))))
 
 (defrecord YoutubeDownloader [config]
   component/Lifecycle
@@ -81,16 +76,17 @@
       (let [temp-dir (fs/temp-dir "video-staging")]
         (fs/chmod "+w" temp-dir)
         (log/info "Temporary directory created:" temp-dir)
-        (reset! running? true)
-        (start-loop! db temp-dir config aws)
-        (assoc component :temp-dir temp-dir))))
+        (-> component
+            (assoc :temp-dir temp-dir
+                   :loop (make-loop! {} do-loop! db temp-dir config aws))))))
 
   (stop [component]
     (log/info "Stopping Youtube RSS downloader")
     (when-let [temp-dir (:temp-dir component)]
       (fs/delete-dir temp-dir))
-    (reset! running? false)
-    (dissoc component :temp-dir)))
+    (let [{:keys [loop]} component]
+      (stop-loop! loop))
+    (dissoc component :loop :temp-dir)))
 
 (defn make-youtube-downloader
   [config]
