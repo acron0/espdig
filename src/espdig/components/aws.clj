@@ -12,7 +12,7 @@
                 :bucket-name bucket
                 :key key
                 :file file)
-    (log/debug "Upload took" (t/in-seconds (t/interval started (t/now))) "s.")))
+    (log/debug "Upload took" (t/in-seconds (t/interval started (t/now))) "secs -" key)))
 
 (defn get-file
   [aws bucket key]
