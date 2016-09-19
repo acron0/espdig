@@ -11,9 +11,9 @@
   [{:feed/channel   "Thooorin"
     :feed/rss       "https://www.youtube.com/feeds/videos.xml?channel_id=UCfeeUuW7edMxF3M_cyxGT8Q"
     :feed/title-rgx [".*"]}
-   {:feed/channel   "Splyce"
-    :feed/rss       "https://www.youtube.com/feeds/videos.xml?channel_id=UC30f1UTFNXfcGcrsojwOpSw"start
-    :feed/title-rgx ["^Spy Cam"]}])
+   {:feed/channel   "Drop The Bomb TV"
+    :feed/rss       "https://www.youtube.com/feeds/videos.xml?channel_id=UC-SmMElbXYS91yuDR1N0RIg"
+    :feed/title-rgx [".*"]}])
 
 (defn new-system
   []

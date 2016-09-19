@@ -11,7 +11,7 @@
             [espdig.utils :refer [make-loop! stop-loop!]]))
 
 ;; we 'define' the shell programs we want to use
-(sh/programs docker)
+(sh/programs youtube-dl)
 
 (defn run-shell-cmd!
   [rfn argsv]
@@ -34,14 +34,14 @@
           (do
             (log/info "Downloading new video:" url)
             (let [output-file (str id' ".m4a")
-                  docker-line ["run" "--net=host" "--rm" "-v" (str dir ":/src")
-                               "jbergknoff/youtube-dl" "-f" "bestaudio[ext=m4a]" "-o" (str "/src/" output-file) url]]
+                  output-filepath (str dir "/" output-file)
+                  ytdl-line ["-f" "140" "-o" output-filepath url]]
               (try
-                (let [result (run-shell-cmd! docker docker-line)]
+                (let [result (run-shell-cmd! youtube-dl ytdl-line)]
                   (if-not ((every-pred number? zero?) (-> result :exit-code deref))
                     (when @running?
                       (log/error "An error occurred whilst downloading the video:" result))
-                    [id' (str dir "/" output-file)]))
+                    [id' output-filepath]))
                 (catch Exception e (log/error e))))))
         (log/error "NO URL???" entry)))))
 
@@ -54,15 +54,17 @@
       (when @running?
         (when-let [entry (first remaining-entries)]
           (try
-            (let [[id uri] (download-audio! running? entry temp-dir config aws)]
+            (let [{:keys [media/name media/author]} entry
+                  filename (format "[%s] - %s.m4a" author name)
+                  [id uri] (download-audio! running? entry temp-dir config aws)]
               (when uri
-                (log/info "Uploading" uri "as" id)
-                (aws/upload-file aws (:s3-bucket config) id (io/file uri)))
+                (log/info "Uploading" uri "as" filename)
+                (aws/upload-file aws (:s3-bucket config) filename (io/file uri)))
               (db/update-item! db (:tbl-name config) id :audio/status :complete)
-              (db/update-item! db (:tbl-name config) id :audio/url    (format "%s/%s/%s"
-                                                                              (:s3-url config)
-                                                                              (:s3-bucket config)
-                                                                              id)))
+              (db/update-item! db (:tbl-name config) id :audio/url (format "%s/%s/%s"
+                                                                           (:s3-url config)
+                                                                           (:s3-bucket config)
+                                                                           filename)))
             (catch Exception e (log/error e)))
           (recur (next remaining-entries)))))))
 
@@ -73,7 +75,7 @@
       (log/info "Starting Youtube RSS downloader")
 
       ;; create temp dir
-      (let [temp-dir (fs/temp-dir "video-staging")]
+      (let [temp-dir (fs/temp-dir "espdig-videos")]
         (fs/chmod "+w" temp-dir)
         (log/info "Temporary directory created:" temp-dir)
         (-> component
