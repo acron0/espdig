@@ -1,7 +1,8 @@
 (ns espdig.core
   (:require [com.stuartsierra.component :as component]
             [espdig.system :refer [new-system]]
-            [taoensso.timbre :as log]))
+            [taoensso.timbre :as log])
+  (:gen-class))
 
 (defn -main
   "I don't do a whole lot."

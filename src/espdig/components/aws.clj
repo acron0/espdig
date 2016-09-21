@@ -25,7 +25,7 @@
         nil
         (log/error "Amazon error:" e)))))
 
-(defrecord Amazon [profile]
+(defrecord Amazon []
   component/Lifecycle
   (start [component]
     (log/info "Connecting to AWS")

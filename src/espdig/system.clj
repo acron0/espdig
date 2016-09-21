@@ -1,5 +1,6 @@
 (ns espdig.system
   (:require [com.stuartsierra.component :as component]
+            [environ.core :refer [env]]
             ;;
             [espdig.components.db :refer [make-db]]
             [espdig.components.aws :refer [make-aws-connection]]
@@ -20,7 +21,8 @@
   (let [config {:db {:host "127.0.0.1"
                      :port 28015
                      :db-name "test"}
-                :aws {:profile "espdig"
+                :aws {:aws-access-key (env :aws-access-key)
+                      :aws-secret-key (env :aws-secret-key)
                       :endpoint "eu-west-1"}
                 :media {:tbl-name "media"
                         :s3-bucket "espdig-m4a"

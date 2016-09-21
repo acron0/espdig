@@ -58,7 +58,7 @@
                   filename (format "[%s] - %s.m4a" author name)
                   [id uri] (download-audio! running? entry temp-dir config aws)]
               (when uri
-                (log/info "Uploading" uri "as" filename)
+                (log/info "Uploading" uri "as" filename "| id=" id)
                 (aws/upload-file aws (:s3-bucket config) filename (io/file uri)))
               (db/update-item! db (:tbl-name config) id :audio/status :complete)
               (db/update-item! db (:tbl-name config) id :audio/url (format "%s/%s/%s"

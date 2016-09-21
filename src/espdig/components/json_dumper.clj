@@ -28,7 +28,7 @@
     (let [json (json/generate-string {:media/list (map #(select-keys % json-keys) rows)})]
       (when (not= @last-json json)
         (reset! last-json json)
-        (log/info "New JSON media list produced, with" (count rows) "item(s):" (.hashCode json))
+        (log/info "New JSON media list produced, with" (count rows) "item(s)")
         (let [f (fs/temp-file "espdig-json")]
           (spit f json)
           (aws/upload-file aws s3-bucket filename f))))))

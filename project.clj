@@ -16,7 +16,11 @@
                  [kixi/schema-contrib "0.2.0"]
                  [clj-time "0.11.0"]
                  [amazonica "0.3.52"]
-                 [cheshire "5.5.0"]]
+                 [cheshire "5.5.0"]
+                 [environ "1.1.0"]]
   :profiles {:dev {:dependencies [[org.clojure/tools.namespace "0.2.4"]]
                    :source-paths ["dev"]
-                   :repl-options {:init-ns user}}})
+                   :repl-options {:init-ns user}}
+             :uberjar {:aot :all
+                       :main espdig.core
+                       :uberjar-name "espdig.jar"}})
