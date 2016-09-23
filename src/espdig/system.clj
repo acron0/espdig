@@ -15,6 +15,9 @@
     :feed/title-rgx [".*"]}
    {:feed/channel   "Drop The Bomb TV"
     :feed/rss       "https://www.youtube.com/feeds/videos.xml?channel_id=UC-SmMElbXYS91yuDR1N0RIg"
+    :feed/title-rgx [".*"]}
+   {:feed/channel   "Richard Lewis"
+    :feed/rss      "https://www.youtube.com/feeds/videos.xml?channel_id=UCEOQ9pSmMEIqfhtCDa2JORw"
     :feed/title-rgx [".*"]}])
 
 (defn new-system
