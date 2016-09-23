@@ -9,6 +9,6 @@
   []
   (log/info "Starting system...")
   (component/start
-   (new-system))
+   (new-system :production))
   (log/info "System running.")
   (while true))

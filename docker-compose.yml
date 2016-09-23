@@ -6,3 +6,10 @@ rethink:
     - '29015:29015'
   volumes:
     - '/var/lib/rethinkdb:/data'
+
+espdig:
+  env_file:
+    - scripts/config
+  image: 'acron/espdig'
+  links:
+    - rethink:rethink

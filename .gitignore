@@ -14,4 +14,4 @@ pom.xml.asc
 .lein-failures
 .nrepl-port
 /data/
-/scripts/credentials
+scripts/config
