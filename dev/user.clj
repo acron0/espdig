@@ -2,7 +2,7 @@
   (:require
    [com.stuartsierra.component :as component]
    [clojure.tools.namespace.repl :refer (refresh refresh-all)]
-   [espdig.system :refer (make-system)]))
+   [espdig.system :refer (new-system)]))
 
 (def system nil)
 
@@ -10,7 +10,7 @@
   "Constructs the current development system."
   []
   (alter-var-root #'system
-                  (constantly (make-system))))
+                  (constantly (new-system :development))))
 
 (defn start
   "Starts the current development system."

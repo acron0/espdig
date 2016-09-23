@@ -4,9 +4,33 @@
             [rethinkdb.query :as rq]
             [rethinkdb.core :as rc]))
 
+(defn deflate-key
+  [m]
+  (-> m
+      (str)
+      (subs 1)
+      (clojure.string/replace "/" "__")
+      (keyword)))
+
+(defn inflate-key
+  [m]
+  (-> m
+      (str)
+      (subs 1)
+      (clojure.string/replace "__" "/")
+      (keyword)))
+
+(defn deflate-map
+  [m]
+  (reduce-kv (fn [a k v] (assoc a (deflate-key k) v)) {} m))
+
+(defn inflate-map
+  [m]
+  (reduce-kv (fn [a k v] (assoc a (inflate-key k) v)) {} m))
+
 (defn connect-to-database
-  [host port db]
-  (rc/connect :host host :port port :db db))
+  [host port db-name]
+  (rc/connect :host host :port port :db db-name))
 
 (defn close-connection
   [conn]
@@ -19,24 +43,60 @@
     (>= (.indexOf tables tbl-name) 0)))
 
 (defn create-table!
-  [{:keys [connection db]} tbl-name]
-  (-> (rq/db db)
+  [{:keys [connection db-name]} tbl-name]
+  (-> (rq/db db-name)
       (rq/table-create tbl-name)
       (rq/run connection)))
 
 (defn create-index!
-  [{:keys [connection db]} tbl-name index-key]
-  (-> (rq/db db)
+  [{:keys [connection db-name]} tbl-name index-key]
+  (let [index-key' (deflate-key index-key)]
+    (-> (rq/db db-name)
+        (rq/table tbl-name)
+        (rq/index-create (name index-key') (rq/fn [row]
+                                             (rq/get-field row index-key')))
+        (rq/run connection))))
+
+(defn insert-item!
+  [{:keys [connection db-name]} tbl-name item]
+  (let [item' (deflate-map item)]
+    (-> (rq/db db-name)
+        (rq/table tbl-name)
+        (rq/insert item')
+        (rq/run connection))))
+
+(defn update-item!
+  [{:keys [connection db-name]} tbl-name id key val]
+  (-> (rq/db db-name)
       (rq/table tbl-name)
-      (rq/index-create (name index-key) (rq/fn [row]
-                                          (rq/get-field row index-key)))
+      (rq/get id)
+      (rq/update (rq/fn [item]
+                   {(deflate-key key) val}))
       (rq/run connection)))
 
-(defrecord Database [host port db]
+(defn get-item-by-id
+  [{:keys [connection db-name]} tbl-name id]
+  (-> (rq/db db-name)
+      (rq/table tbl-name)
+      (rq/get id)
+      (rq/run connection)))
+
+(defn select-indexed-items
+  [{:keys [connection db-name]} tbl-name index value]
+  (try
+    (mapv inflate-map
+          (-> (rq/db db-name)
+              (rq/table tbl-name)
+              (rq/get-all [value] {:index (deflate-key index)})
+              (rq/run connection)))
+    (catch Exception e (log/warn "Couldn't selected indexed items:" (.getMessage e))
+           [])))
+
+(defrecord Database [host port db-name]
   component/Lifecycle
   (start [component]
     (log/info "Starting database")
-    (let [conn (connect-to-database host port db)]
+    (let [conn (connect-to-database host port db-name)]
       (assoc component :connection conn)))
 
   (stop [component]
@@ -45,5 +105,5 @@
     (assoc component :connection nil)))
 
 (defn make-db
-  [host port db]
-  (->Database host port db))
+  [args]
+  (map->Database args))

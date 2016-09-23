@@ -1,8 +1,14 @@
 (ns espdig.core
-  (:gen-class)
   (:require [com.stuartsierra.component :as component]
-            [espdig.system :as sys]))
+            [espdig.system :refer [new-system]]
+            [taoensso.timbre :as log])
+  (:gen-class))
 
-(defn -main [& args]
+(defn -main
+  "I don't do a whole lot."
+  []
+  (log/info "Starting system...")
   (component/start
-   (sys/make-system)))
+   (new-system :production))
+  (log/info "System running.")
+  (while true))
