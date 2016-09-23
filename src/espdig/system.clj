@@ -28,14 +28,18 @@
           config {:db {:host (if (= profile :development) "127.0.0.1" "rethink")
                        :port 28015
                        :db-name "test"}
-                  :aws {:aws-access-key (env :aws-access-key)
-                        :aws-secret-key (env :aws-secret-key)
-                        :endpoint "eu-west-1"}
+                  :aws (merge {:endpoint "eu-west-1"}
+                              (if (= profile :development)
+                                {:profile "espdig"}
+                                {:aws-access-key (env :aws-access-key)
+                                 :aws-secret-key (env :aws-secret-key)}))
                   :media {:tbl-name "media"
                           :s3-bucket "espdig-m4a"
                           :s3-url "https://s3-eu-west-1.amazonaws.com"}
-                  :json {:filename "data.json"
-                         :s3-bucket "espdig-www"}}]
+                  :json {:filename "data.json.gz"
+                         :s3-bucket "espdig-www"}
+                  :log {:level (if (= profile :development) :debug :info)}}]
+      (log/merge-config! (:log config))
       (component/system-map
        :db    (make-db (:db config))
        :aws   (make-aws-connection (:aws config))
