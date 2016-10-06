@@ -18,6 +18,12 @@
     :feed/title-rgx [".*"]}
    {:feed/channel   "Richard Lewis"
     :feed/rss      "https://www.youtube.com/feeds/videos.xml?channel_id=UCEOQ9pSmMEIqfhtCDa2JORw"
+    :feed/title-rgx [".*"]}
+   {:feed/channel   "Monte Cristo"
+    :feed/rss      "https://www.youtube.com/feeds/videos.xml?channel_id=UCZ26xCMrmYnUWYFtZr7cWCg"
+    :feed/title-rgx [".*"]}
+   {:feed/channel   "Insight on Esports"
+    :feed/rss      "https://www.youtube.com/feeds/videos.xml?channel_id=UC4AGeYoOM9lRH6-L7wNFgTQ"
     :feed/title-rgx [".*"]}])
 
 (defn new-system
@@ -36,7 +42,7 @@
                   :media {:tbl-name "media"
                           :s3-bucket "espdig-m4a"
                           :s3-url "https://s3-eu-west-1.amazonaws.com"}
-                  :json {:filename "data.json.gz"
+                  :json {:filename "data.json"
                          :s3-bucket "espdig-www"}
                   :log {:level (if (= profile :development) :debug :info)}}]
       (log/merge-config! (:log config))

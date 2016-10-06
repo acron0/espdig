@@ -6,12 +6,13 @@
             [clj-time.core :as t]))
 
 (defn upload-file
-  [aws bucket key file]
+  [aws bucket key file metadata]
   (let [started (t/now)]
     (put-object aws
                 :bucket-name bucket
                 :key key
-                :file file)
+                :file file
+                :metadata metadata)
     (log/debug "Upload took" (t/in-seconds (t/interval started (t/now))) "secs -" key)))
 
 (defn get-file

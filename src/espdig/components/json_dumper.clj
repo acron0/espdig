@@ -41,7 +41,8 @@
           (with-open [in (io/input-stream f1)
                       out (io/output-stream f2)]
             (gzip in out))
-          (aws/upload-file aws s3-bucket filename f2)
+          (aws/upload-file aws s3-bucket filename f2 {:content-type "application/json"
+                                                      :content-encoding "gzip"})
           (fs/delete (str f1))
           (fs/delete (str f2)))))))
 
