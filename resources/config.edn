@@ -1,5 +1,5 @@
 {:db {:host #profile {:development "127.0.0.1"
-                      :production "rethinkdb"}
+                      :production "rethink"}
       :port 28015
       :db-name "test"}
  :aws #profile {:development {:endpoint "eu-west-1"
