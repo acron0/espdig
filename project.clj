@@ -17,7 +17,8 @@
                  [clj-time "0.11.0"]
                  [amazonica "0.3.52"]
                  [cheshire "5.5.0"]
-                 [environ "1.1.0"]]
+                 [environ "1.1.0"]
+                 [aero "1.0.1"]]
   :profiles {:dev {:dependencies [[org.clojure/tools.namespace "0.2.4"]]
                    :source-paths ["dev"]
                    :repl-options {:init-ns user}}
