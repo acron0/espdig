@@ -2,6 +2,8 @@
   (:require [com.stuartsierra.component :as component]
             [environ.core :refer [env]]
             [taoensso.timbre :as log]
+            [clojure.java.io :as io]
+            [aero.core :refer [read-config]]
             ;;
             [espdig.components.db :refer [make-db]]
             [espdig.components.aws :refer [make-aws-connection]]
@@ -28,34 +30,23 @@
 
 (defn new-system
   [profile]
-  (if-not (and (env :aws-access-key) (env :aws-secret-key))
-    (log/error "Credentials not found.")
-    (let [_ (log/info "Credentials found.")
-          config {:db {:host (if (= profile :development) "127.0.0.1" "rethink")
-                       :port 28015
-                       :db-name "test"}
-                  :aws (merge {:endpoint "eu-west-1"}
-                              (if (= profile :development)
-                                {:profile "espdig"}
-                                {:aws-access-key (env :aws-access-key)
-                                 :aws-secret-key (env :aws-secret-key)}))
-                  :media {:tbl-name "media"
-                          :s3-bucket "espdig-m4a"
-                          :s3-url "https://s3-eu-west-1.amazonaws.com"}
-                  :json {:filename "data.json"
-                         :s3-bucket "espdig-www"}
-                  :log {:level (if (= profile :development) :debug :info)}}]
-      (log/merge-config! (:log config))
-      (component/system-map
-       :db    (make-db (:db config))
-       :aws   (make-aws-connection (:aws config))
-       :feeds (component/using
-               (make-youtube-feeds-checker youtube-feeds (:media config))
-               [:db])
-       :yt-dl (component/using
-               (make-youtube-downloader (:media config))
-               [:aws :db])
-       :json (component/using
-              (make-json-dumper (assoc (:json config)
-                                       :tbl-name (get-in config [:media :tbl-name])))
-              [:aws :db])))))
+  (let [config (read-config (io/resource "config.edn") {:profile profile})]
+    (if (and (= profile :production)
+             (or (not (get-in config [:aws :aws-access-key]))
+                 (not (get-in config [:aws :aws-secret-key]))))
+      (log/error "Credentials missing!")
+      (do
+        (log/merge-config! (:log config))
+        (component/system-map
+         :db    (make-db (:db config))
+         :aws   (make-aws-connection (:aws config))
+         :feeds (component/using
+                 (make-youtube-feeds-checker youtube-feeds (:media config))
+                 [:db])
+         :yt-dl (component/using
+                 (make-youtube-downloader (:media config))
+                 [:aws :db])
+         :json (component/using
+                (make-json-dumper (assoc (:json config)
+                                         :tbl-name (get-in config [:media :tbl-name])))
+                [:aws :db]))))))

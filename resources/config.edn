@@ -1,0 +1,16 @@
+{:db {:host #profile {:development "127.0.0.1"
+                      :production "rethinkdb"}
+      :port 28015
+      :db-name "test"}
+ :aws #profile {:development {:endpoint "eu-west-1"
+                              :profile "espdig"}
+                :production {:endpoint "eu-west-1"
+                             :aws-access-key #env AWS_ACCESS_KEY
+                             :aws-secret-key #env AWS_SECRET_KEY}}
+ :media {:tbl-name "media"
+         :s3-bucket "espdig-m4a"
+         :s3-url "https://s3-eu-west-1.amazonaws.com"}
+ :json {:filename "data.json"
+        :s3-bucket "espdig-www"}
+ :log {:level #profile {:development :debug
+                        :production :info}}}
