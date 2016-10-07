@@ -30,7 +30,8 @@
                                          :thumbnail (-> % (find-element :group) (find-element :thumbnail) (second) :url)
                                          :published (-> % (find-element :published) (last)))
                               (filter #(and (vector? %) (= (first %) :entry)) resp))))
-    (catch java.net.UnknownHostException _ (log/errorf "Couldn't find %s - do you have an internet connection?" feed))))
+    (catch java.net.UnknownHostException _ (log/errorf "Couldn't find %s - do you have an internet connection?" feed))
+    (catch Exception e (log/errorf "Error whilst downloading %s: %s" rss e))))
 
 (defn save-entry!
   [config db {:keys [meta/hash] :as entry}]
