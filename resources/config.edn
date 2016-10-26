@@ -11,6 +11,6 @@
          :s3-bucket "espdig-m4a"
          :s3-url "https://s3-eu-west-1.amazonaws.com"}
  :json {:filename "data.json"
-        :s3-bucket "espdig-www"}
+        :s3-bucket "www.espop.net"}
  :log {:level #profile {:development :debug
                         :production :info}}}
