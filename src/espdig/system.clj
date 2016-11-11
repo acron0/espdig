@@ -26,6 +26,9 @@
     :feed/title-rgx [".*"]}
    {:feed/channel   "Insight on Esports"
     :feed/rss      "https://www.youtube.com/feeds/videos.xml?channel_id=UC4AGeYoOM9lRH6-L7wNFgTQ"
+    :feed/title-rgx [".*"]}
+   {:feed/channel   "Thorin's Side"
+    :feed/rss      "https://www.youtube.com/feeds/videos.xml?channel_id=UC4rma8fFU0UmxiiVzH8RHDA"
     :feed/title-rgx [".*"]}])
 
 (defn new-system
