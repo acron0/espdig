@@ -33,6 +33,6 @@
   {:feed/channel   "Thorin's Side"
    :feed/rss      "https://www.youtube.com/feeds/videos.xml?channel_id=UC4rma8fFU0UmxiiVzH8RHDA"
    :feed/title-rgx [".*"]}
-  {:feed/channel   "Ginx TV: The Bridge'"
+  {:feed/channel   "Ginx TV: The Bridge"
    :feed/rss      "https://www.youtube.com/feeds/videos.xml?channel_id=UCKw1Zh2KWkmgOC4FhIH1QOw"
    :feed/title-rgx [".*The Bridge.*"]}]}

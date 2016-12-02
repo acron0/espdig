@@ -23,7 +23,7 @@
   (try
     (when-let [resp (tagsoup/parse rss)]
       (hash-map :chan-id (-> resp (find-element :channelId) (last))
-                :author  (-> resp (find-element :author) (find-element :name) (last))
+                :author  channel
                 :entries (map #(hash-map :id (-> % (find-element :videoId) (last))
                                          :title (-> % (find-element :title) (last))
                                          :original-link (-> % (find-element :link) (second) :href)
@@ -45,10 +45,14 @@
         (when-let [entries (fetch-feed-entries! db feed)]
           (try
             (let [{:keys [entries chan-id author]} entries
-                  {:keys [feed/channel feed/rss feed/title-rgx]} feed
+                  {:keys [feed/title-rgx]} feed
                   entries' (->> entries
                                 (map #(es/entry->media-item % chan-id author))
-                                (filter #(not (db/get-item-by-id db (:tbl-name config) (:meta/hash %)))))]
+                                (filter
+                                 #(some (fn [p]
+                                          (re-find (re-pattern p) (:media/name %))) title-rgx))
+                                (filter
+                                 #(not (db/get-item-by-id db (:tbl-name config) (:meta/hash %)))))]
               (when-not (zero? (count entries'))
                 (log/info "Found" (count entries') "new entry/entries for" chan-id))
               (run! #(save-entry! config db %) entries'))
