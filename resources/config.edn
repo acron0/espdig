@@ -13,4 +13,26 @@
  :json {:filename "data.json"
         :s3-bucket "www.espop.net"}
  :log {:level #profile {:development :debug
-                        :production :info}}}
+                        :production :info}}
+ :youtube-feeds
+ [{:feed/channel   "Thooorin"
+   :feed/rss       "https://www.youtube.com/feeds/videos.xml?channel_id=UCfeeUuW7edMxF3M_cyxGT8Q"
+   :feed/title-rgx [".*"]}
+  {:feed/channel   "Drop The Bomb TV"
+   :feed/rss       "https://www.youtube.com/feeds/videos.xml?channel_id=UC-SmMElbXYS91yuDR1N0RIg"
+   :feed/title-rgx [".*"]}
+  {:feed/channel   "Richard Lewis"
+   :feed/rss      "https://www.youtube.com/feeds/videos.xml?channel_id=UCEOQ9pSmMEIqfhtCDa2JORw"
+   :feed/title-rgx [".*"]}
+  {:feed/channel   "Monte Cristo"
+   :feed/rss      "https://www.youtube.com/feeds/videos.xml?channel_id=UCZ26xCMrmYnUWYFtZr7cWCg"
+   :feed/title-rgx [".*"]}
+  {:feed/channel   "Insight on Esports"
+   :feed/rss      "https://www.youtube.com/feeds/videos.xml?channel_id=UC4AGeYoOM9lRH6-L7wNFgTQ"
+   :feed/title-rgx [".*"]}
+  {:feed/channel   "Thorin's Side"
+   :feed/rss      "https://www.youtube.com/feeds/videos.xml?channel_id=UC4rma8fFU0UmxiiVzH8RHDA"
+   :feed/title-rgx [".*"]}
+  {:feed/channel   "Ginx TV: The Bridge'"
+   :feed/rss      "https://www.youtube.com/feeds/videos.xml?channel_id=UCKw1Zh2KWkmgOC4FhIH1QOw"
+   :feed/title-rgx [".*The Bridge.*"]}]}
